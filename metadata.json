@@ -1,0 +1,6 @@
+{
+  "name": "BoraTreinar",
+  "description": "Sistema mobile para personal trainer gerenciar agendamentos, planos de alunos, controle automático de vencimentos e relatórios de inadimplência.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

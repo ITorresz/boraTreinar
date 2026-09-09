@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-app: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f5f9;
+    --bg-muted: #f1f5f9;
+    --bg-elevated: #ffffff;
+    
+    --border-subtle: #e2e8f0;
+    --border-focus: #10b981;
+    
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --primary-light: #ecfdf5;
+    --primary-text: #065f46;
+    
+    --accent-warning-bg: #fffbeb;
+    --accent-warning-border: #fde68a;
+    --accent-warning-text: #b45309;
+    
+    --accent-danger-bg: #fef2f2;
+    --accent-danger-border: #fecaca;
+    --accent-danger-text: #b91c1c;
+
+    --accent-success-bg: #f0fdf4;
+    --accent-success-border: #bbf7d0;
+    --accent-success-text: #15803d;
+    
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  }
+
+  [data-theme="dark"] {
+    --bg-app: #090d16;
+    --bg-surface: #111827;
+    --bg-card: #141e33;
+    --bg-card-hover: #1b2844;
+    --bg-muted: #1e293b;
+    --bg-elevated: #1e293b;
+    
+    --border-subtle: #1e293b;
+    --border-focus: #34d399;
+    
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    
+    --primary: #10b981;
+    --primary-hover: #34d399;
+    --primary-light: #064e3b;
+    --primary-text: #6ee7b7;
+    
+    --accent-warning-bg: #451a03;
+    --accent-warning-border: #78350f;
+    --accent-warning-text: #fde68a;
+    
+    --accent-danger-bg: #450a0a;
+    --accent-danger-border: #7f1d1d;
+    --accent-danger-text: #fecaca;
+
+    --accent-success-bg: #064e3b;
+    --accent-success-border: #065f46;
+    --accent-success-text: #86efac;
+    
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  }
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar for mobile feel */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+
+/* Print styles for relatórios de inadimplência */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-page {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}
