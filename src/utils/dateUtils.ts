@@ -113,3 +113,30 @@ export function getNextMonthDueDate(currentDueDateStr?: string | null, billingDa
 
   return `${nextYear}-${mStr}-${dStr}`;
 }
+
+// Retrocede a data de vencimento em 1 mês (ex: 10/10 -> 10/09) para uso em estornos
+export function getPreviousMonthDueDate(currentDueDateStr?: string | null, billingDay: number = 10): string {
+  if (!currentDueDateStr || typeof currentDueDateStr !== 'string') {
+    const today = new Date();
+    today.setDate(billingDay || 10);
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  const [y, m] = currentDueDateStr.split('-').map(Number);
+  let prevYear = y || new Date().getFullYear();
+  let prevMonth = (m || 1) - 1;
+  if (prevMonth < 1) {
+    prevMonth = 12;
+    prevYear--;
+  }
+
+  const lastDayOfMonth = new Date(prevYear, prevMonth, 0).getDate();
+  const day = Math.min(billingDay || 10, lastDayOfMonth);
+  const mStr = String(prevMonth).padStart(2, '0');
+  const dStr = String(day).padStart(2, '0');
+
+  return `${prevYear}-${mStr}-${dStr}`;
+}

@@ -20,6 +20,11 @@ export interface Client {
   notes?: string;
   lastPaymentDate?: string;
   createdAt: string;
+  // Campos de Pagamento Parcial
+  isPartialPayment?: boolean; // Se tem faturamento parcial em aberto
+  partialAmountPaid?: number; // Valor pago até agora
+  partialRemainingAmount?: number; // Saldo devedor restante
+  previousDueDate?: string; // Data de vencimento anterior para possibilitar estorno
 }
 
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled' | 'rescheduled';
@@ -35,6 +40,13 @@ export interface Appointment {
   status: AppointmentStatus;
   location?: string;
   notes?: string;
+  recurrenceGroupId?: string;
+  // Campos de Remarcação de Aula
+  rescheduledToDate?: string;
+  rescheduledToTime?: string;
+  rescheduledFromDate?: string;
+  rescheduledFromTime?: string;
+  originalAppointmentId?: string;
 }
 
 export type PaymentMethod = 'pix' | 'cartao' | 'dinheiro' | 'transferencia';
@@ -48,6 +60,12 @@ export interface PaymentRecord {
   referenceMonth: string; // ex: "09/2026"
   paymentMethod: PaymentMethod;
   notes?: string;
+  // Campos para estorno e pagamento parcial
+  isPartial?: boolean;
+  totalDueAmount?: number;
+  remainingAmount?: number;
+  remainingBalance?: number;
+  previousDueDate?: string;
 }
 
 export interface PersonalSettings {
@@ -58,7 +76,7 @@ export interface PersonalSettings {
   warningDaysBeforeDue: number; // Dias antes de avisar vencimento (ex: 3 dias)
 }
 
-export type PaymentStatusType = 'paid' | 'warning' | 'overdue';
+export type PaymentStatusType = 'paid' | 'warning' | 'overdue' | 'partial';
 
 export interface ComputedClientStatus {
   status: PaymentStatusType;
@@ -67,4 +85,6 @@ export interface ComputedClientStatus {
   badgeClass: string;
   textColor: string;
   bgColor: string;
+  isPartial?: boolean;
+  remainingAmount?: number;
 }

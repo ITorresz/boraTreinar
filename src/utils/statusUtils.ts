@@ -17,6 +17,22 @@ export function computeClientPaymentStatus(
     };
   }
 
+  // Se o aluno tiver faturamento parcial em aberto com saldo devedor
+  if (client.isPartialPayment && (client.partialRemainingAmount || 0) > 0) {
+    const remaining = client.partialRemainingAmount || 0;
+    const daysDiff = calculateDaysDiff(client.dueDate, referenceDate);
+    return {
+      status: 'partial',
+      label: `Faturado Parcial (Falta ${formatCurrency(remaining)})`,
+      daysDiff,
+      badgeClass: 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700 font-bold',
+      textColor: 'text-amber-700 dark:text-amber-300',
+      bgColor: 'bg-amber-50 dark:bg-amber-950/40',
+      isPartial: true,
+      remainingAmount: remaining,
+    };
+  }
+
   const daysDiff = calculateDaysDiff(client.dueDate, referenceDate);
 
   if (daysDiff < 0) {
@@ -79,7 +95,12 @@ export function generateWhatsAppCobrançaUrl(
   const daysDiff = calculateDaysDiff(client.dueDate);
 
   let message = '';
-  if (daysDiff < 0) {
+  if (client.isPartialPayment && (client.partialRemainingAmount || 0) > 0) {
+    const restanteStr = formatCurrency(client.partialRemainingAmount);
+    message = `Olá ${client.name}, tudo bem? Espero que sim!\n\nPassando para lembrar que ainda consta um *saldo pendente de ${restanteStr}* referente à mensalidade do seu plano (${planName}) com vencimento em *${dataVencStr}*.\n\n` +
+      (settings.pixKey ? `🔑 Chave Pix para quitação do restante:\n*${settings.pixKey}* (${settings.pixKeyType.toUpperCase()})\nFavorecido: ${settings.trainerName || 'Personal'}\n\n` : '') +
+      `Assim que efetuar o pagamento do saldo, me envie o comprovante por aqui para atualizarmos tudo no sistema. Muito obrigado! 💪🏋️`;
+  } else if (daysDiff < 0) {
     const diasAtraso = Math.abs(daysDiff);
     message = `Olá ${client.name}, tudo bem? Espero que sim!\n\nPassando para lembrar que a mensalidade do seu plano de Personal (${planName}) referente ao vencimento de *${dataVencStr}* (${diasAtraso} ${diasAtraso === 1 ? 'dia' : 'dias'} em aberto) no valor de *${valorStr}* ainda não foi identificada no sistema.\n\n` +
       (settings.pixKey ? `🔑 Chave Pix para pagamento:\n*${settings.pixKey}* (${settings.pixKeyType.toUpperCase()})\nFavorecido: ${settings.trainerName || 'Personal'}\n\n` : '') +

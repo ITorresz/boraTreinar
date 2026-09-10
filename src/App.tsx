@@ -12,7 +12,7 @@ import { PlansModal } from './components/PlansModal';
 import { Plan, Client, Appointment, PaymentRecord, PersonalSettings } from './types';
 import { initializeAppState, saveStoredData, STORAGE_KEYS } from './utils/storage';
 import { computeClientPaymentStatus } from './utils/statusUtils';
-import { getNextMonthDueDate, getTodayDateString } from './utils/dateUtils';
+import { getNextMonthDueDate, getPreviousMonthDueDate, getTodayDateString, formatDateBR, formatCurrency } from './utils/dateUtils';
 import { INITIAL_PLANS, INITIAL_SETTINGS, getInitialClients, getInitialAppointments, getInitialPaymentHistory } from './utils/mockData';
 
 export default function App() {
@@ -128,6 +128,66 @@ export default function App() {
     setAppointments((prev) => prev.filter((a) => a.id !== apptId));
   };
 
+  const handleRescheduleAppt = (
+    originalApptId: string,
+    dateOrData: string | { date: string; time: string; notes?: string },
+    possibleTime?: string,
+    possibleNotes?: string
+  ) => {
+    const originalAppt = appointments.find((a) => a.id === originalApptId);
+    if (!originalAppt) return;
+
+    let newDate = '';
+    let newTime = '';
+    let newNotes = '';
+
+    if (typeof dateOrData === 'object') {
+      newDate = dateOrData.date;
+      newTime = dateOrData.time;
+      newNotes = dateOrData.notes || '';
+    } else {
+      newDate = dateOrData;
+      newTime = possibleTime || originalAppt.time;
+      newNotes = possibleNotes || '';
+    }
+
+    if (!newDate || !newTime) return;
+
+    const newApptId = `appt-${Date.now()}`;
+    const newAppointment: Appointment = {
+      ...originalAppt,
+      id: newApptId,
+      date: newDate,
+      time: newTime,
+      status: 'rescheduled',
+      originalAppointmentId: originalApptId,
+      rescheduledFromDate: originalAppt.date,
+      rescheduledFromTime: originalAppt.time,
+      notes: newNotes || `[Reagendada da aula de ${formatDateBR(originalAppt.date)} às ${originalAppt.time}]`,
+    };
+
+    const updatedAppts = [
+      ...appointments.map((a) =>
+        a.id === originalApptId
+          ? {
+              ...a,
+              status: 'cancelled' as const,
+              rescheduledToDate: newDate,
+              rescheduledToTime: newTime,
+              notes: newNotes
+                ? `[Remarcada para ${formatDateBR(newDate)} às ${newTime}: ${newNotes}]`
+                : `[Remarcada para ${formatDateBR(newDate)} às ${newTime}]`,
+            }
+          : a
+      ),
+      newAppointment,
+    ];
+
+    setAppointments(updatedAppts);
+    saveStoredData(STORAGE_KEYS.APPOINTMENTS, updatedAppts);
+    setAgendaSelectedDate(newDate);
+  };
+
   // Client Handlers
   const handleOpenAddClient = () => {
     setEditingClient(null);
@@ -156,7 +216,7 @@ export default function App() {
     }
   };
 
-  // Payment Handler with Automatic Expiration Rolling
+  // Payment Handler with Automatic Expiration Rolling and Partial Support
   const handleOpenPaymentModal = (client: Client) => {
     setClientForPayment(client);
     setIsPaymentModalOpen(true);
@@ -175,25 +235,81 @@ export default function App() {
       referenceMonth: paymentData.referenceMonth || '09/2026',
       paymentMethod: paymentData.paymentMethod || 'pix',
       notes: paymentData.notes || '',
+      isPartial: paymentData.isPartial || false,
+      remainingAmount: paymentData.remainingAmount || 0,
     };
     setPayments((prev) => [newPayment, ...prev]);
 
-    // Update Client due date automatically!
+    // Update Client due date and partial flags
     setClients((prev) =>
       prev.map((c) => {
         if (c.id === clientForPayment.id) {
-          const updatedDueDate = advanceDueDate
-            ? getNextMonthDueDate(c.dueDate, c.billingDay)
-            : c.dueDate;
-          return {
-            ...c,
-            dueDate: updatedDueDate,
-            lastPaymentDate: newPayment.paymentDate,
-          };
+          if (paymentData.isPartial) {
+            const accumulatedPaid = (c.isPartialPayment ? (c.partialAmountPaid || 0) : 0) + newPayment.amount;
+            const remaining = Math.max(0, paymentData.remainingAmount ?? (c.price - accumulatedPaid));
+            return {
+              ...c,
+              lastPaymentDate: newPayment.paymentDate,
+              isPartialPayment: remaining > 0.01,
+              partialAmountPaid: accumulatedPaid,
+              partialRemainingAmount: remaining,
+              dueDate: advanceDueDate ? getNextMonthDueDate(c.dueDate, c.billingDay) : c.dueDate,
+            };
+          } else {
+            const updatedDueDate = advanceDueDate
+              ? getNextMonthDueDate(c.dueDate, c.billingDay)
+              : c.dueDate;
+            return {
+              ...c,
+              dueDate: updatedDueDate,
+              lastPaymentDate: newPayment.paymentDate,
+              isPartialPayment: false,
+              partialAmountPaid: 0,
+              partialRemainingAmount: 0,
+            };
+          }
         }
         return c;
       })
     );
+  };
+
+  // Estornar / Excluir Pagamento
+  const handleRefundPayment = (paymentId: string) => {
+    const payment = payments.find((p) => p.id === paymentId);
+    if (!payment) return;
+
+    const updatedPayments = payments.filter((p) => p.id !== paymentId);
+    setPayments(updatedPayments);
+    saveStoredData(STORAGE_KEYS.PAYMENTS, updatedPayments);
+
+    setClients((prev) => {
+      const updatedClients = prev.map((c) => {
+        if (c.id === payment.clientId) {
+          if (payment.isPartial && c.isPartialPayment) {
+            const newPartialPaid = Math.max(0, (c.partialAmountPaid || 0) - payment.amount);
+            return {
+              ...c,
+              isPartialPayment: newPartialPaid > 0,
+              partialAmountPaid: newPartialPaid,
+              partialRemainingAmount: c.price - newPartialPaid,
+            };
+          } else {
+            const revertedDueDate = getPreviousMonthDueDate(c.dueDate, c.billingDay);
+            return {
+              ...c,
+              dueDate: revertedDueDate,
+              isPartialPayment: false,
+              partialAmountPaid: 0,
+              partialRemainingAmount: 0,
+            };
+          }
+        }
+        return c;
+      });
+      saveStoredData(STORAGE_KEYS.CLIENTS, updatedClients);
+      return updatedClients;
+    });
   };
 
   // Plan Handlers
@@ -292,6 +408,7 @@ export default function App() {
             onEditAppointment={handleOpenEditAppt}
             onToggleStatus={handleToggleApptStatus}
             onDeleteAppointment={handleDeleteAppt}
+            onOpenPaymentModal={handleOpenPaymentModal}
           />
         )}
 
@@ -315,6 +432,7 @@ export default function App() {
             payments={payments}
             settings={settings}
             onOpenPaymentModal={handleOpenPaymentModal}
+            onRefundPayment={handleRefundPayment}
           />
         )}
 
@@ -342,6 +460,7 @@ export default function App() {
         onClose={() => setIsApptModalOpen(false)}
         onSave={handleSaveAppt}
         onSaveMultiple={handleSaveMultipleAppts}
+        onReschedule={handleRescheduleAppt}
         appointmentToEdit={editingAppt}
         clients={clients.filter((c) => c.active)}
         plans={plans}

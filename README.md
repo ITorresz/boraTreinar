@@ -2,7 +2,8 @@
 
 > Sistema completo e responsivo (Mobile-First) para Personal Trainers gerenciarem seus agendamentos, planos de alunos, controle de vencimentos e relatórios de inadimplência com cobrança em 1 clique via WhatsApp.
 
-Repositório oficial: [https://github.com/ITorresz/boraTreinar](https://github.com/ITorresz/boraTreinar)
+Repositório oficial: [https://github.com/ITorresz/boraTreinar](https://github.com/ITorresz/boraTreinar)  
+🔗 **Acesse online:** [https://itorresz.github.io/boraTreinar/](https://itorresz.github.io/boraTreinar/)
 
 ---
 

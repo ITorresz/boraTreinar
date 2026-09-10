@@ -246,6 +246,15 @@ export const FullCalendarModal: React.FC<FullCalendarModalProps> = ({
               const isToday = today === dateStr;
               const apptsOnDay = appointments.filter((a) => a.date === dateStr);
               const count = apptsOnDay.length;
+              const hasCancelled = apptsOnDay.some((a) => a.status === 'cancelled');
+              const hasRescheduled = apptsOnDay.some((a) => a.status === 'rescheduled');
+
+              let badgeBg = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200';
+              if (hasCancelled) {
+                badgeBg = 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200';
+              } else if (hasRescheduled) {
+                badgeBg = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200';
+              }
 
               return (
                 <button
@@ -257,6 +266,10 @@ export const FullCalendarModal: React.FC<FullCalendarModalProps> = ({
                       ? 'bg-emerald-600 text-white font-bold border-emerald-600 shadow-sm scale-102 z-10'
                       : isToday
                       ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-semibold border-emerald-400 dark:border-emerald-700'
+                      : hasCancelled
+                      ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/20 text-[var(--text-primary)] font-medium'
+                      : hasRescheduled
+                      ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 text-[var(--text-primary)] font-medium'
                       : 'border-[var(--border-subtle)] hover:bg-[var(--bg-muted)] text-[var(--text-primary)] font-medium'
                   }`}
                 >
@@ -267,7 +280,7 @@ export const FullCalendarModal: React.FC<FullCalendarModalProps> = ({
                       className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-md ${
                         isSelected
                           ? 'bg-white text-emerald-700 shadow-xs'
-                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/80 dark:text-emerald-200'
+                          : badgeBg
                       }`}
                     >
                       {count} {count === 1 ? 'aula' : 'aulas'}
@@ -323,24 +336,51 @@ export const FullCalendarModal: React.FC<FullCalendarModalProps> = ({
             ) : (
               <div className="space-y-2">
                 <p className="text-xs text-[var(--text-secondary)] font-medium">
-                  Toque em <strong>"Alterar"</strong> para mudar o horário desta aula:
+                  Toque em <strong>"Alterar / Remarcar"</strong> para mudar o horário desta aula:
                 </p>
                 {selectedDayAppointments.map((appt) => {
                   const client = clients.find((c) => c.id === appt.clientId);
+                  const isCancelled = appt.status === 'cancelled';
+                  const isRescheduled = appt.status === 'rescheduled';
+
+                  const itemClass = isCancelled
+                    ? 'border-rose-300 dark:border-rose-900/80 bg-rose-50/60 dark:bg-rose-950/20'
+                    : isRescheduled
+                    ? 'border-amber-300 dark:border-amber-900/80 bg-amber-50/60 dark:bg-amber-950/20'
+                    : 'bg-[var(--bg-surface)] border-[var(--border-subtle)]';
+
                   return (
                     <div
                       key={appt.id}
-                      className="p-2.5 sm:p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-between gap-2 shadow-xs"
+                      className={`p-2.5 sm:p-3 rounded-xl border flex items-center justify-between gap-2 shadow-xs ${itemClass}`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="p-1.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 shrink-0">
+                        <div className={`p-1.5 rounded-lg shrink-0 ${
+                          isCancelled
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                            : isRescheduled
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                            : 'bg-emerald-100/70 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                        }`}>
                           <Clock className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-xs sm:text-sm font-bold ${
+                              isCancelled ? 'line-through text-rose-600' : 'text-[var(--text-primary)]'
+                            }`}>
                               {appt.time}
                             </span>
+                            {isCancelled && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                                Desmarcada / Remarcada
+                              </span>
+                            )}
+                            {isRescheduled && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                                Reagendada
+                              </span>
+                            )}
                             <span className="text-xs text-[var(--text-muted)] font-normal">
                               ({appt.durationMinutes} min)
                             </span>
@@ -348,17 +388,25 @@ export const FullCalendarModal: React.FC<FullCalendarModalProps> = ({
                           <p className="text-xs font-medium text-[var(--text-secondary)] truncate">
                             {client ? client.name : 'Aluno'} - {appt.serviceType || 'Treino'}
                           </p>
+                          {appt.notes && (
+                            <p className="text-[10px] text-[var(--text-muted)] truncate">
+                              {appt.notes}
+                            </p>
+                          )}
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleEditClass(appt)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-xs shrink-0"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                        <span>Alterar</span>
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleEditClass(appt)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-xs shrink-0"
+                          title="Alterar ou remarcar este horário"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Alterar</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

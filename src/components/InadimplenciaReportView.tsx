@@ -12,6 +12,8 @@ import {
   FileCheck,
   Clock,
   CheckCircle2,
+  RotateCcw,
+  Percent,
 } from 'lucide-react';
 import { Client, PaymentRecord, PersonalSettings, Plan } from '../types';
 import { formatCurrency, formatDateBR, getTodayDateString } from '../utils/dateUtils';
@@ -23,6 +25,7 @@ interface InadimplenciaReportViewProps {
   payments: PaymentRecord[];
   settings: PersonalSettings;
   onOpenPaymentModal: (client: Client) => void;
+  onRefundPayment?: (paymentId: string) => void;
 }
 
 export const InadimplenciaReportView: React.FC<InadimplenciaReportViewProps> = ({
@@ -31,8 +34,10 @@ export const InadimplenciaReportView: React.FC<InadimplenciaReportViewProps> = (
   payments,
   settings,
   onOpenPaymentModal,
+  onRefundPayment,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [paymentToRefund, setPaymentToRefund] = useState<PaymentRecord | null>(null);
   const today = getTodayDateString();
 
   // Calcular status de todos os clientes
@@ -44,12 +49,26 @@ export const InadimplenciaReportView: React.FC<InadimplenciaReportViewProps> = (
       const plan = plans.find((p) => p.id === client.planId);
       return { client, status, plan };
     })
-    .filter((item) => item.status.status === 'overdue')
+    .filter((item) => item.status.status === 'overdue' && !item.client.isPartialPayment)
     .sort((a, b) => a.status.daysDiff - b.status.daysDiff); // Mais atrasados primeiro
+
+  // Clientes com pagamento parcial pendente
+  const partialClients = activeClients
+    .map((client) => {
+      const status = computeClientPaymentStatus(client, settings.warningDaysBeforeDue);
+      const plan = plans.find((p) => p.id === client.planId);
+      return { client, status, plan };
+    })
+    .filter((item) => item.client.isPartialPayment && (item.client.partialRemainingAmount || 0) > 0);
 
   // Cálculos Financeiros
   const totalInadimplente = delinquentClients.reduce(
     (acc, curr) => acc + curr.client.price,
+    0
+  );
+
+  const totalPartialPendente = partialClients.reduce(
+    (acc, curr) => acc + (curr.client.partialRemainingAmount || 0),
     0
   );
 
@@ -63,7 +82,7 @@ export const InadimplenciaReportView: React.FC<InadimplenciaReportViewProps> = (
 
   const taxaAdimplencia =
     activeClients.length > 0
-      ? Math.round(((activeClients.length - delinquentClients.length) / activeClients.length) * 100)
+      ? Math.round(((activeClients.length - delinquentClients.length - partialClients.length) / activeClients.length) * 100)
       : 100;
 
   // Exportar para CSV (Excel Brasil)
@@ -376,6 +395,90 @@ export const InadimplenciaReportView: React.FC<InadimplenciaReportViewProps> = (
           )}
         </div>
 
+        {/* Alunos com Faturamento Parcial (Metade/Entrada Pendente) */}
+        {partialClients.length > 0 && (
+          <div className="space-y-3 mt-6">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                <Percent className="w-3.5 h-3.5" />
+                Alunos com Faturamento Parcial ({partialClients.length})
+              </h3>
+              <span className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                Total a receber: {formatCurrency(totalPartialPendente)}
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {partialClients.map(({ client, plan }) => {
+                const restante = client.partialRemainingAmount || (client.price - (client.partialAmountPaid || 0));
+
+                return (
+                  <div
+                    key={client.id}
+                    className="p-4 rounded-2xl bg-[var(--bg-card)] border border-amber-300 dark:border-amber-800/80 shadow-xs hover:border-amber-400 transition"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold text-[var(--text-primary)]">
+                            {client.name}
+                          </h4>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                            Faturado Parcial
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                          {plan?.name || 'Plano Personal'} • Total:{' '}
+                          <strong>{formatCurrency(client.price)}</strong> • Já Pago:{' '}
+                          <strong className="text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(client.partialAmountPaid || 0)}
+                          </strong>
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-base font-black text-amber-600 dark:text-amber-400">
+                          {formatCurrency(restante)}
+                        </span>
+                        <p className="text-[10px] text-[var(--text-muted)]">Saldo restante</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+                      <span className="text-xs text-[var(--text-muted)] truncate max-w-[150px]">
+                        {client.phone}
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={generateWhatsAppCobrançaUrl(client, plan, settings)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs transition active:scale-95"
+                          title="Cobrar saldo restante pelo WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>Cobrar Restante</span>
+                        </a>
+
+                        <button
+                          onClick={() => onOpenPaymentModal(client)}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-xs font-semibold text-amber-900 dark:text-amber-200 transition"
+                          title="Quitar restante do valor"
+                        >
+                          <FileCheck className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Quitar Restante</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Histórico Recente de Pagamentos */}
         <div className="mt-6 space-y-3">
           <div className="flex items-center justify-between px-1">
@@ -391,24 +494,107 @@ export const InadimplenciaReportView: React.FC<InadimplenciaReportViewProps> = (
             </div>
           ) : (
             <div className="bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)] overflow-hidden shadow-xs">
-              {payments.slice(0, 10).map((p) => (
-                <div key={p.id} className="p-3 flex items-center justify-between gap-2 text-xs">
-                  <div>
-                    <span className="font-bold text-[var(--text-primary)]">{p.clientName}</span>
-                    <p className="text-[11px] text-[var(--text-muted)]">
+              {payments.slice(0, 15).map((p) => (
+                <div key={p.id} className="p-3.5 flex items-center justify-between gap-2.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-[var(--text-primary)] truncate">{p.clientName}</span>
+                      {p.isPartial && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          Parcial
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                       {formatDateBR(p.paymentDate)} • Ref: {p.referenceMonth} • {p.paymentMethod.toUpperCase()}
                       {p.notes ? ` • "${p.notes}"` : ''}
                     </p>
                   </div>
-                  <span className="font-black text-emerald-600 dark:text-emerald-400">
-                    +{formatCurrency(p.amount)}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">
+                      +{formatCurrency(p.amount)}
+                    </span>
+                    {onRefundPayment && (
+                      <button
+                        type="button"
+                        onClick={() => setPaymentToRefund(p)}
+                        className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                        title="Estornar / Excluir pagamento lançado por engano"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                        <span>Estornar</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal de Confirmação de Estorno (sem window.confirm) */}
+      {paymentToRefund && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="w-full max-w-md bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
+                  Confirmar Estorno
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Excluir recebimento registrado por engano
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/80 space-y-2 text-xs">
+              <p className="text-rose-950 dark:text-rose-100">
+                Aluno: <strong className="font-bold text-sm">{paymentToRefund.clientName}</strong>
+              </p>
+              <p className="text-rose-950 dark:text-rose-100">
+                Valor do Pagamento: <strong className="text-base font-black text-rose-600 dark:text-rose-400">{formatCurrency(paymentToRefund.amount)}</strong>
+              </p>
+              <p className="text-rose-800 dark:text-rose-300">
+                Data: {formatDateBR(paymentToRefund.paymentDate)} • Ref: {paymentToRefund.referenceMonth} • {paymentToRefund.paymentMethod.toUpperCase()}
+              </p>
+              {paymentToRefund.isPartial && (
+                <p className="font-bold text-amber-700 dark:text-amber-400">
+                  (Este foi um pagamento parcial)
+                </p>
+              )}
+              <div className="pt-2 border-t border-rose-200 dark:border-rose-900/60 text-[11px] text-rose-800 dark:text-rose-300">
+                ⚠️ <strong>Atenção:</strong> O lançamento será excluído do histórico e a data de vencimento / pendência financeira do aluno será recalculada para o estado anterior.
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPaymentToRefund(null)}
+                className="flex-1 py-3 px-4 rounded-xl border border-[var(--border-subtle)] text-xs sm:text-sm font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRefundPayment && paymentToRefund) {
+                    onRefundPayment(paymentToRefund.id);
+                  }
+                  setPaymentToRefund(null);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs sm:text-sm shadow-md transition cursor-pointer active:scale-95"
+              >
+                Sim, Estornar Pagamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

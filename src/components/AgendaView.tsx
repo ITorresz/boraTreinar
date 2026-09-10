@@ -175,7 +175,10 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
             const parts = dateStr ? dateStr.split('-') : [];
             const dayNum = parts[2] || '';
             const dayShort = getShortDayOfWeek(dateStr);
-            const apptsOnThisDay = appointments.filter((a) => a.date === dateStr).length;
+            const dayAppts = appointments.filter((a) => a.date === dateStr);
+            const hasCancelled = dayAppts.some((a) => a.status === 'cancelled');
+            const hasRescheduled = dayAppts.some((a) => a.status === 'rescheduled');
+            const hasRegular = dayAppts.some((a) => a.status === 'scheduled' || a.status === 'completed');
 
             return (
               <button
@@ -191,12 +194,27 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
               >
                 <span className="text-xs tracking-tight uppercase">{dayShort}</span>
                 <span className="text-sm sm:text-base font-bold mt-0.5">{dayNum}</span>
-                {apptsOnThisDay > 0 && (
-                  <span
-                    className={`mt-1.5 w-1.5 h-1.5 rounded-full ${
-                      isSelected ? 'bg-white' : 'bg-emerald-500'
-                    }`}
-                  />
+                {dayAppts.length > 0 && (
+                  <div className="mt-1 flex items-center justify-center gap-0.5">
+                    {hasCancelled && (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-rose-200' : 'bg-rose-500'}`}
+                        title="Possui aula desmarcada/remarcada"
+                      />
+                    )}
+                    {hasRescheduled && (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-200' : 'bg-amber-400'}`}
+                        title="Possui aula reagendada"
+                      />
+                    )}
+                    {hasRegular && (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}`}
+                        title="Possui treinos agendados"
+                      />
+                    )}
+                  </div>
                 )}
               </button>
             );
@@ -253,20 +271,26 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
             const client = clients.find((c) => c.id === appt.clientId);
             const plan = plans.find((p) => p.id === (client?.planId || appt.planId));
             const isCompleted = appt.status === 'completed';
+            const isCancelled = appt.status === 'cancelled';
+            const isRescheduled = appt.status === 'rescheduled';
 
             // Cálculo do status financeiro automático
             const paymentStatus = client
               ? computeClientPaymentStatus(client, settings.warningDaysBeforeDue)
               : null;
 
+            const cardBorderBg = isCancelled
+              ? 'border-rose-300 dark:border-rose-900/80 bg-rose-50/60 dark:bg-rose-950/20 shadow-xs'
+              : isRescheduled
+              ? 'border-amber-300 dark:border-amber-800/80 bg-amber-50/70 dark:bg-amber-950/20 shadow-xs'
+              : isCompleted
+              ? 'border-[var(--border-subtle)] opacity-75 bg-[var(--bg-muted)]/30'
+              : 'border-[var(--border-subtle)] hover:border-emerald-500/40 shadow-xs';
+
             return (
               <div
                 key={appt.id}
-                className={`bg-[var(--bg-card)] rounded-2xl p-4 sm:p-4.5 border transition-all duration-150 ${
-                  isCompleted
-                    ? 'border-[var(--border-subtle)] opacity-75 bg-[var(--bg-muted)]/30'
-                    : 'border-[var(--border-subtle)] hover:border-emerald-500/40 shadow-xs'
-                }`}
+                className={`bg-[var(--bg-card)] rounded-2xl p-4 sm:p-4.5 border transition-all duration-150 ${cardBorderBg}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   {/* Horário e Status */}
@@ -278,22 +302,41 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                     >
                       {isCompleted ? (
                         <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-100 dark:fill-emerald-950" />
+                      ) : isCancelled ? (
+                        <span className="w-5 h-5 rounded-full border-2 border-rose-500 flex items-center justify-center text-[10px] text-rose-600 font-black">✕</span>
+                      ) : isRescheduled ? (
+                        <span className="w-5 h-5 rounded-full border-2 border-amber-500 flex items-center justify-center text-[10px] text-amber-600 font-black">↺</span>
                       ) : (
                         <Circle className="w-5 h-5 text-[var(--text-muted)] stroke-[1.5]" />
                       )}
                     </button>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`text-base font-bold tracking-tight ${
-                            isCompleted
-                              ? 'line-through text-[var(--text-muted)]'
+                            isCompleted || isCancelled
+                              ? 'line-through text-rose-600 dark:text-rose-400'
+                              : isRescheduled
+                              ? 'text-amber-800 dark:text-amber-300'
                               : 'text-[var(--text-primary)]'
                           }`}
                         >
                           {appt.time}
                         </span>
+
+                        {isCancelled && (
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-600 text-white shadow-xs">
+                            Desmarcada / Remarcada
+                          </span>
+                        )}
+
+                        {isRescheduled && (
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500 text-white shadow-xs">
+                            Aula Reagendada
+                          </span>
+                        )}
+
                         <span className="text-xs text-[var(--text-muted)] flex items-center gap-1 font-normal">
                           <Clock className="w-3.5 h-3.5" />
                           {appt.durationMinutes} min
@@ -323,7 +366,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                     <button
                       onClick={() => onEditAppointment(appt)}
                       className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)] transition"
-                      title="Editar horário"
+                      title="Editar horário / Remarcar"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -337,7 +380,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                   </div>
                 </div>
 
-                {/* Linha do Serviço e Local */}
+                {/* Linha do Serviço, Local e Notas de Remarcação */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-[var(--text-secondary)]">
                   {appt.serviceType && (
                     <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
@@ -349,6 +392,17 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                     <span className="flex items-center gap-1.5 text-[var(--text-muted)] font-normal">
                       <MapPin className="w-3.5 h-3.5" />
                       {appt.location}
+                    </span>
+                  )}
+                  {appt.notes && (
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${
+                      isCancelled
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        : isRescheduled
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                        : 'bg-slate-100 dark:bg-slate-800 text-[var(--text-muted)]'
+                    }`}>
+                      {appt.notes}
                     </span>
                   )}
                 </div>
@@ -367,7 +421,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                         <span>{paymentStatus.label}</span>
                       </span>
 
-                      {paymentStatus.status === 'overdue' && (
+                      {(paymentStatus.status === 'overdue' || paymentStatus.status === 'partial') && (
                         <a
                           href={generateWhatsAppCobrançaUrl(client, plan, settings)}
                           target="_blank"
@@ -376,7 +430,7 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                           title="Enviar lembrete de cobrança via WhatsApp"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Cobrar WhatsApp</span>
+                          <span>{paymentStatus.status === 'partial' ? 'Cobrar Restante' : 'Cobrar WhatsApp'}</span>
                         </a>
                       )}
                     </div>
@@ -394,12 +448,16 @@ export const AgendaView: React.FC<AgendaViewProps> = ({
                         <span>Lembrar Treino</span>
                       </a>
 
-                      {paymentStatus.status === 'overdue' && (
+                      {(paymentStatus.status === 'overdue' || paymentStatus.status === 'partial') && (
                         <button
                           onClick={() => onOpenPaymentModal(client)}
-                          className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-medium px-2.5 py-1 rounded-lg transition"
+                          className={`text-xs text-white font-medium px-2.5 py-1 rounded-lg transition ${
+                            paymentStatus.status === 'partial'
+                              ? 'bg-amber-600 hover:bg-amber-700'
+                              : 'bg-rose-600 hover:bg-rose-700'
+                          }`}
                         >
-                          Dar Baixa
+                          {paymentStatus.status === 'partial' ? 'Quitar Restante' : 'Dar Baixa'}
                         </button>
                       )}
                     </div>
